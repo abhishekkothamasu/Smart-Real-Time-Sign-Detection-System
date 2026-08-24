@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>SignAI | Gesture Recognition</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+
+  <body>
+    <!-- HEADER -->
+    <header class="site-header">
+      <h1 class="site-title">Smart Real-Time Sign Detection System</h1>
+      <div class="header-actions">
+        <span class="username"
+          >Welcome, {{ current_user.name if current_user.is_authenticated else
+          'Guest' }}</span
+        >
+        <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+      </div>
+    </header>
+
+    <!-- MAIN APP -->
+    <div
+      class="page-tabs"
+      style="
+        display: flex;
+        gap: 10px;
+        padding: 20px 20px 0 20px;
+        justify-content: center;
+        background: #0f172a;
+      "
+    >
+      <button
+        id="tab-page1"
+        onclick="switchPage('alphabet_mode')"
+        style="
+          padding: 15px 30px;
+          font-size: 16px;
+          border-radius: 8px 8px 0 0;
+          border: none;
+          cursor: pointer;
+          background: #3b82f6;
+          color: white;
+          font-weight: bold;
+          flex: 1;
+          max-width: 400px;
+          transition: 0.2s;
+        "
+      >
+        Page 1: Alphabet Gesture Detection
+      </button>
+      <button
+        id="tab-page2"
+        onclick="switchPage('chat_gesture')"
+        style="
+          padding: 15px 30px;
+          font-size: 16px;
+          border-radius: 8px 8px 0 0;
+          border: none;
+          cursor: pointer;
+          background: #1e293b;
+          color: #94a3b8;
+          font-weight: bold;
+          flex: 1;
+          max-width: 400px;
+          transition: 0.2s;
+        "
+      >
+        Page 2: Real-Time Hospital Alerts
+      </button>
+    </div>
+    <div
+      class="app-container"
+      style="border-top: 2px solid #3b82f6; margin-top: 0; padding-top: 20px"
+    >
+      <div class="video-panel">
+        <!-- VIDEO -->
+        <div class="video-wrapper">
+          <div class="live-indicator"><span class="live-dot"></span> LIVE</div>
+          <div
+            id="camera-loading"
+            style="
+              position: absolute;
+              top: 50%;
+              left: 50%;
+              transform: translate(-50%, -50%);
+              color: #94a3b8;
+              font-size: 18px;
+              z-index: 5;
+            "
+          >
+            ⏳ Loading Camera...
+          </div>
+          <img
+            id="video-img"
+            class="video-feed"
+            style="opacity: 0; transition: opacity 0.5s ease"
+          />
+        </div>
+
+        <!-- CONTROLS -->
+        <div class="controls-panel">
+          <!-- Removed Mode Select Dropdown -->
+
+          <div class="control-card extra-controls">
+            <span class="control-label">Language</span>
+            <select id="language-select">
+              <option value="ASL">ASL (English)</option>
+              <option value="BSL">BSL (English)</option>
+            </select>
+          </div>
+
+          <div class="control-card">
+            <span class="control-label">AI Confidence</span>
+            <div class="status-value" id="conf-val">0.00</div>
+          </div>
+
+          <div class="control-card extra-controls">
+            <span class="control-label">Voice Output</span>
+            <button id="speak-btn">🔊 Speak</button>
+          </div>
+
+          <div class="control-card extra-controls">
+            <span class="control-label">Reset</span>
+            <button id="clear-btn">🗑 Clear</button>
+          </div>
+        </div>
+
+        <!-- HOSPITAL INFO SECTION (Default Hidden) -->
+        <div
+          id="hospital-info"
+          style="
+            display: none;
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.4);
+            border-radius: 12px;
+            padding: 15px;
+            margin-top: 15px;
+            text-align: left;
+          "
+        >
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-bottom: 15px;
+            "
+          >
+            <h3 style="color: #3b82f6; font-size: 16px; margin: 0">
+              🏥 Hospital Patient Connection
+            </h3>
+            <div>
+              <label
+                for="room-select"
+                style="color: #cbd5e1; font-size: 14px; margin-right: 5px"
+                >Room:</label
+              >
+              <select
+                id="room-select"
+                style="
+                  padding: 4px 8px;
+                  border-radius: 4px;
+                  background: #1e293b;
+                  color: white;
+                  border: 1px solid #3b82f6;
+                  outline: none;
+                "
+              ></select>
+            </div>
+          </div>
+          <div
+            style="
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 10px;
+              color: #cbd5e1;
+              font-size: 14px;
+              background: rgba(0, 0, 0, 0.2);
+              padding: 10px;
+              border-radius: 8px;
+            "
+          >
+            <div>
+              <strong>Nurse:</strong> <span id="pat-nurse">Loading...</span>
+            </div>
+            <div>
+              <strong>Phone:</strong> <span id="pat-phone">Loading...</span>
+            </div>
+            <div>
+              <strong>Last Gesture:</strong>
+              <span id="pat-gesture" style="color: #fcd34d">None</span>
+            </div>
+            <div><strong>Status:</strong> <span id="pat-status">OK</span></div>
+            <div style="grid-column: span 2">
+              <strong>Message:</strong>
+              <span id="pat-message" style="color: #f87171">None</span>
+              <span
+                style="font-size: 12px; color: #94a3b8; float: right"
+                id="pat-time"
+              ></span>
+            </div>
+          </div>
+          <p
+            style="
+              color: #94a3b8;
+              font-size: 12px;
+              margin-top: 10px;
+              text-align: center;
+            "
+          >
+            Perform gestures like ✋ (HELP), ✊ (PAIN), 👍 (WATER) to send
+            instant alerts.
+          </p>
+        </div>
+
+        <!-- OUTPUT TEXT -->
+        <div class="formed-text-display" id="formed-text">
+          Waiting for gestures...
+        </div>
+
+        <div class="buffer-display" id="buffer-text">buffer:</div>
+
+        <!-- WORD SUGGESTIONS -->
+        <div class="suggestions-display" id="suggestions-container">
+          <div class="suggestions-label">Suggestions:</div>
+          <div class="suggestions-list" id="suggestions-list">
+            <!-- Suggestions will be populated here -->
+          </div>
+        </div>
+
+        <!-- ALPHABET CONTROLS -->
+        <div class="controls-panel" id="alphabet-controls">
+          <div class="control-card">
+            <span class="control-label">Alphabet Editing</span>
+            <div>
+              <button id="space-btn">Space</button>
+              <button id="delete-btn">Delete</button>
+              <button id="clear-buffer-btn">Clear Buffer</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Local state for instant UI updates
+      let localSentence = "Waiting for gestures...";
+      let localBuffer = "";
+
+      // Lazy-load camera feed so the page renders instantly
+      (function () {
+        const videoImg = document.getElementById("video-img");
+        const loadingDiv = document.getElementById("camera-loading");
+        videoImg.onload = function () {
+          loadingDiv.style.display = "none";
+          videoImg.style.opacity = "1";
+        };
+        // Set src AFTER page renders
+        videoImg.src = "{{ url_for('video_feed') }}";
+      })();
+
+      function speakText(text) {
+        if (!text) return;
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 0.9;
+        utterance.lang = "en-US";
+        window.speechSynthesis.speak(utterance);
+      }
+
+      let lastPrediction = "";
+
+      setInterval(() => {
+        fetch("/status")
+          .then((res) => res.json())
+          .then((data) => {
+            localBuffer = data.buffer || "";
+            document.getElementById("conf-val").innerText = data.confidence;
+            document.getElementById("buffer-text").innerText =
+              "Buffer: " + localBuffer;
+            updateSuggestions(data.suggestions || []);
+
+            if (currentActiveMode === "chat_gesture") {
+              // In gesture mode — show the detected gesture meaning
+              const gestureText = data.prediction || "Show a gesture...";
+              document.getElementById("formed-text").innerText = gestureText;
+              // Auto-speak when a new gesture is confidently detected
+              if (
+                gestureText !== lastPrediction &&
+                gestureText !== "Show a gesture..." &&
+                gestureText !== "Detecting..." &&
+                gestureText !== "No hand detected" &&
+                parseFloat(data.confidence) > 0.5
+              ) {
+                lastPrediction = gestureText;
+              }
+            } else {
+              // Alphabet mode — show the formed sentence
+              localSentence = data.sentence || "Waiting for gestures...";
+              document.getElementById("formed-text").innerText = localSentence;
+            }
+          });
+      }, 300);
+
+      document.getElementById("speak-btn").onclick = () => {
+        let textToSpeak = "";
+
+        if (localSentence && localSentence !== "Waiting for gestures...") {
+          textToSpeak += localSentence;
+        }
+
+        if (localBuffer) {
+          textToSpeak += (textToSpeak ? " " : "") + localBuffer;
+        }
+
+        if (!textToSpeak) {
+          textToSpeak = "Waiting for gestures...";
+        }
+
+        speakText(textToSpeak);
+      };
+
+      document.getElementById("clear-btn").onclick = () => {
+        // OPTIMISTIC UPDATE: Clear UI immediately
+        localSentence = "";
+        localBuffer = "";
+        document.getElementById("formed-text").innerText =
+          "Waiting for gestures...";
+        document.getElementById("buffer-text").innerText = "Buffer: ";
+
+        // Fire async request without waiting
+        fetch("/clear_text", { method: "POST" }).catch((err) =>
+          console.error("Clear sync error:", err),
+        );
+      };
+
+      document.getElementById("space-btn").onclick = () => {
+        // OPTIMISTIC UPDATE: Add space and commit buffer
+        if (localBuffer) {
+          const currentWords =
+            localSentence === "Waiting for gestures..."
+              ? []
+              : localSentence.split(" ").filter((w) => w);
+          if (localBuffer)
+            currentWords.push(
+              localBuffer.charAt(0).toUpperCase() + localBuffer.slice(1),
+            );
+          localSentence = currentWords.join(" ") || "Waiting for gestures...";
+        }
+        localBuffer = "";
+        document.getElementById("formed-text").innerText = localSentence;
+        document.getElementById("buffer-text").innerText = "Buffer: ";
+
+        // Fire async request without waiting
+        fetch("/insert_space", { method: "POST" }).catch((err) =>
+          console.error("Space sync error:", err),
+        );
+      };
+
+      let currentActiveMode = "alphabet_mode";
+
+      function switchPage(mode) {
+        currentActiveMode = mode;
+
+        // Update Tab Styles
+        const tab1 = document.getElementById("tab-page1");
+        const tab2 = document.getElementById("tab-page2");
+        if (mode === "alphabet_mode") {
+          tab1.style.background = "#3b82f6";
+          tab1.style.color = "white";
+          tab2.style.background = "#1e293b";
+          tab2.style.color = "#94a3b8";
+        } else {
+          tab2.style.background = "#3b82f6";
+          tab2.style.color = "white";
+          tab1.style.background = "#1e293b";
+          tab1.style.color = "#94a3b8";
+        }
+
+        // UI Adjustments for Hospital Mode vs Alphabet Mode
+        if (mode === "chat_gesture") {
+          document.getElementById("hospital-info").style.display = "block";
+          document.getElementById("alphabet-controls").style.display = "none";
+          // Hide unneeded top controls
+          document
+            .querySelectorAll(".extra-controls")
+            .forEach((e) => (e.style.display = "none"));
+
+          fetchPatientInfo(); // Load info immediately when entering mode
+        } else {
+          document.getElementById("hospital-info").style.display = "none";
+          document.getElementById("alphabet-controls").style.display = "flex";
+          // Show top controls again
+          document
+            .querySelectorAll(".extra-controls")
+            .forEach((e) => (e.style.display = "block"));
+        }
+
+        fetch("/update_settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ operation_mode: mode }),
+        }).catch((err) => console.error("Mode change error:", err));
+      }
+
+      // Set initial UI state
+      switchPage("alphabet_mode");
+
+      // --- Hospital Mode Logic ---
+
+      function loadRooms() {
+        fetch("/api/available_rooms")
+          .then((res) => res.json())
+          .then((rooms) => {
+            const select = document.getElementById("room-select");
+            select.innerHTML = "";
+            rooms.forEach((room) => {
+              let opt = document.createElement("option");
+              opt.value = room;
+              opt.innerHTML = room;
+              select.appendChild(opt);
+            });
+            if (rooms.length > 0) {
+              select.value = rooms[0]; // Set default
+              changeRoom(rooms[0]); // Tell backend
+            }
+          });
+      }
+
+      function changeRoom(roomNum) {
+        fetch("/api/set_room", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ room: roomNum }),
+        }).then(() => fetchPatientInfo());
+      }
+
+      document.getElementById("room-select").onchange = (e) => {
+        changeRoom(e.target.value);
+      };
+
+      function fetchPatientInfo() {
+        if (currentActiveMode !== "chat_gesture") return;
+
+        fetch("/api/patient_info")
+          .then((res) => res.json())
+          .then((data) => {
+            document.getElementById("pat-nurse").innerText =
+              data.assigned_nurse;
+            document.getElementById("pat-phone").innerText =
+              data.assigned_phone;
+            document.getElementById("pat-gesture").innerText =
+              data.latest_gesture;
+            document.getElementById("pat-message").innerText =
+              data.latest_message;
+            document.getElementById("pat-time").innerText =
+              data.latest_time !== "None" ? data.latest_time : "";
+
+            const statusEl = document.getElementById("pat-status");
+            statusEl.innerText = data.status;
+            if (data.status === "Pending") statusEl.style.color = "#f87171";
+            else if (data.status === "In Progress")
+              statusEl.style.color = "#fcd34d";
+            else statusEl.style.color = "#4ade80";
+          });
+      }
+
+      // Load rooms on startup
+      loadRooms();
+
+      // Poll patient info to show real-time admin updates
+      setInterval(fetchPatientInfo, 5000);
+
+      document.getElementById("clear-buffer-btn").onclick = () => {
+        // Clear buffer without committing
+        localBuffer = "";
+        document.getElementById("buffer-text").innerText = "Buffer: ";
+        updateSuggestions([]);
+
+        // Fire async request without waiting
+        fetch("/clear_buffer", { method: "POST" }).catch((err) =>
+          console.error("Clear buffer error:", err),
+        );
+      };
+
+      function updateSuggestions(suggestions) {
+        const container = document.getElementById("suggestions-list");
+        container.innerHTML = "";
+
+        if (suggestions.length === 0) {
+          container.innerHTML =
+            '<div class="no-suggestions">No suggestions available</div>';
+          return;
+        }
+
+        suggestions.forEach((suggestion) => {
+          const button = document.createElement("button");
+          button.className = "suggestion-btn";
+          button.textContent = suggestion;
+          button.onclick = () => selectSuggestion(suggestion);
+          container.appendChild(button);
+        });
+      }
+
+      function selectSuggestion(word) {
+        // Add the selected word to sentence and clear buffer
+        const currentWords =
+          localSentence === "Waiting for gestures..."
+            ? []
+            : localSentence.split(" ").filter((w) => w);
+        currentWords.push(word.charAt(0).toUpperCase() + word.slice(1));
+        localSentence = currentWords.join(" ") || "Waiting for gestures...";
+        localBuffer = "";
+
+        document.getElementById("formed-text").innerText = localSentence;
+        document.getElementById("buffer-text").innerText = "Buffer: ";
+        updateSuggestions([]);
+
+        // Fire async request without waiting
+        fetch("/apply_suggestion", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ word: word }),
+        }).catch((err) => console.error("Apply suggestion error:", err));
+      }
+    </script>
+  </body>
+</html>

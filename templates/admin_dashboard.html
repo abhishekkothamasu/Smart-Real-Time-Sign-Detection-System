@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>SignAI | Admin Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/admin.css') }}"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="dashboard-container">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <h2>Admin<span>Panel</span></h2>
+        </div>
+        <nav class="sidebar-nav">
+          <a href="#" class="nav-item active" data-target="alerts-view">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+            </svg>
+            Live Alerts
+          </a>
+          <a href="#" class="nav-item" data-target="rooms-view">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+              <polyline points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
+            Room Management
+          </a>
+          <div class="spacer"></div>
+          <a href="{{ url_for('logout') }}" class="nav-item logout">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            Logout
+          </a>
+        </nav>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="main-content">
+        <header class="top-header">
+          <div class="header-info">
+            <h1>Hospital Dashboard</h1>
+            <p>Real-time patient monitoring and alerts</p>
+          </div>
+          <div class="user-profile">
+            <div class="avatar">{{ current_user.name[0] }}</div>
+            <span>{{ current_user.name }}</span>
+          </div>
+        </header>
+
+        <!-- Alerts View -->
+        <section id="alerts-view" class="view-section active">
+          <div class="stats-row">
+            <div class="stat-card">
+              <h3>Pending Alerts</h3>
+              <div class="val text-danger" id="count-pending">0</div>
+            </div>
+            <div class="stat-card">
+              <h3>In Progress</h3>
+              <div class="val text-warning" id="count-progress">0</div>
+            </div>
+            <div class="stat-card">
+              <h3>Resolved Today</h3>
+              <div class="val text-success" id="count-resolved">0</div>
+            </div>
+          </div>
+
+          <div class="card table-card">
+            <div class="card-header">
+              <h2>Recent Alert Requests</h2>
+              <button class="btn btn-sm btn-outline" onclick="fetchAlerts()">
+                ↻ Refresh
+              </button>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Room</th>
+                    <th>Patient Status</th>
+                    <th>Assigned Nurse</th>
+                    <th>Detected Gesture</th>
+                    <th>Message</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="alerts-table-body">
+                  <!-- Populated by JS -->
+                  <tr>
+                    <td colspan="7" class="text-center">Loading alerts...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- Rooms View -->
+        <section id="rooms-view" class="view-section">
+          <div class="card">
+            <div class="card-header">
+              <h2>Room Phone Number Assignments</h2>
+              <button
+                class="btn btn-sm btn-primary"
+                onclick="openAddRoomModal()"
+              >
+                + Add Room
+              </button>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Room Number</th>
+                    <th>Assigned Nurse</th>
+                    <th>Contact Phone</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="rooms-table-body">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Modal for Adding/Editing Rooms -->
+    <div id="room-modal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="modal-title">Add New Room</h3>
+          <span class="close-modal" onclick="closeRoomModal()">&times;</span>
+        </div>
+        <div class="modal-body">
+          <form id="room-form">
+            <input type="hidden" id="room_id" />
+            <div class="input-group">
+              <label>Room Number</label>
+              <input
+                type="text"
+                id="room_number"
+                required
+                placeholder="e.g. 101-A"
+              />
+            </div>
+            <div class="input-group">
+              <label>Assigned Nurse</label>
+              <input
+                type="text"
+                id="nurse_name"
+                required
+                placeholder="Nurse Name"
+              />
+            </div>
+            <div class="input-group">
+              <label>Contact Phone (for SMS Alerts)</label>
+              <input
+                type="tel"
+                id="contact_phone"
+                required
+                placeholder="+1234567890"
+              />
+            </div>
+            <div class="modal-actions">
+              <button
+                type="button"
+                class="btn btn-outline"
+                onclick="closeRoomModal()"
+              >
+                Cancel
+              </button>
+              <button type="submit" class="btn btn-primary">Save Room</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // UI Navigation
+      document.querySelectorAll(".nav-item[data-target]").forEach((item) => {
+        item.addEventListener("click", (e) => {
+          e.preventDefault();
+          // Update active nav
+          document
+            .querySelectorAll(".nav-item")
+            .forEach((nav) => nav.classList.remove("active"));
+          item.classList.add("active");
+
+          // Show target view
+          const targetId = item.getAttribute("data-target");
+          document
+            .querySelectorAll(".view-section")
+            .forEach((view) => view.classList.remove("active"));
+          document.getElementById(targetId).classList.add("active");
+
+          if (targetId === "rooms-view") fetchRooms();
+          if (targetId === "alerts-view") fetchAlerts();
+        });
+      });
+
+      // Data Fetching and Updating - Alerts
+      function fetchAlerts() {
+        fetch("/api/alerts")
+          .then((res) => res.json())
+          .then((data) => {
+            const tbody = document.getElementById("alerts-table-body");
+            tbody.innerHTML = "";
+
+            let pending = 0,
+              progress = 0,
+              resolved = 0;
+
+            if (data.length === 0) {
+              tbody.innerHTML =
+                '<tr><td colspan="7" class="text-center">No alerts found.</td></tr>';
+            }
+
+            data.forEach((alert) => {
+              // Counters
+              if (alert.status === "Pending") pending++;
+              else if (alert.status === "In Progress") progress++;
+              else if (alert.status === "Completed") resolved++;
+
+              const tr = document.createElement("tr");
+              const statusClass =
+                alert.status === "Pending"
+                  ? "badge-danger"
+                  : alert.status === "In Progress"
+                    ? "badge-warning"
+                    : "badge-success";
+
+              // Action buttons based on status
+              let actionHtml = "";
+              if (alert.status === "Pending") {
+                actionHtml = `<button class="btn-action bg-warning" onclick="updateAlertStatus(${alert.id}, 'In Progress')">Mark In Progress</button>`;
+              } else if (alert.status === "In Progress") {
+                actionHtml = `<button class="btn-action bg-success" onclick="updateAlertStatus(${alert.id}, 'Completed')">Mark Completed</button>`;
+              } else {
+                actionHtml = `<span class="text-muted">Done</span>`;
+              }
+
+              tr.innerHTML = `
+                            <td>${new Date(alert.timestamp).toLocaleTimeString()}</td>
+                            <td class="fw-bold">${alert.room_number}</td>
+                            <td>${alert.patient_status || "Stable"}</td>
+                            <td>${alert.nurse_name || "Unassigned"}</td>
+                            <td><span class="gesture-badge">${alert.detected_gesture}</span></td>
+                            <td>${alert.message}</td>
+                            <td><span class="badge ${statusClass}">${alert.status}</span></td>
+                            <td>${actionHtml}</td>
+                        `;
+              tbody.appendChild(tr);
+            });
+
+            document.getElementById("count-pending").innerText = pending;
+            document.getElementById("count-progress").innerText = progress;
+            document.getElementById("count-resolved").innerText = resolved;
+          });
+      }
+
+      function updateAlertStatus(id, newStatus) {
+        fetch(`/api/alerts/${id}/status`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: newStatus }),
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.success) fetchAlerts();
+          });
+      }
+
+      // Data Fetching and Updating - Rooms
+      function fetchRooms() {
+        fetch("/api/rooms")
+          .then((res) => res.json())
+          .then((data) => {
+            const tbody = document.getElementById("rooms-table-body");
+            tbody.innerHTML = "";
+
+            if (data.length === 0) {
+              tbody.innerHTML =
+                '<tr><td colspan="4" class="text-center">No rooms configured.</td></tr>';
+            }
+
+            data.forEach((room) => {
+              const tr = document.createElement("tr");
+              tr.innerHTML = `
+                            <td class="fw-bold">${room.room_number}</td>
+                            <td>${room.assigned_nurse || "Unassigned"}</td>
+                            <td>${room.assigned_phone || "None"}</td>
+                            <td>
+                                <button class="btn-action outline" onclick="editRoom(${room.id}, '${room.room_number}', '${room.assigned_nurse}', '${room.assigned_phone}')">Edit</button>
+                                <button class="btn-action outline text-danger" onclick="deleteRoom(${room.id})">Remove</button>
+                            </td>
+                        `;
+              tbody.appendChild(tr);
+            });
+          });
+      }
+
+      // Room Modals
+      function openAddRoomModal() {
+        document.getElementById("modal-title").innerText = "Add New Room";
+        document.getElementById("room-form").reset();
+        document.getElementById("room_id").value = "";
+        document.getElementById("room-modal").style.display = "flex";
+      }
+
+      function editRoom(id, room_num, nurse, phone) {
+        document.getElementById("modal-title").innerText =
+          "Edit Room Configuration";
+        document.getElementById("room_id").value = id;
+        document.getElementById("room_number").value = room_num;
+        document.getElementById("nurse_name").value =
+          nurse !== "null" ? nurse : "";
+        document.getElementById("contact_phone").value =
+          phone !== "null" ? phone : "";
+        document.getElementById("room-modal").style.display = "flex";
+      }
+
+      function closeRoomModal() {
+        document.getElementById("room-modal").style.display = "none";
+      }
+
+      document
+        .getElementById("room-form")
+        .addEventListener("submit", function (e) {
+          e.preventDefault();
+          const id = document.getElementById("room_id").value;
+          const payload = {
+            room_number: document.getElementById("room_number").value,
+            nurse_name: document.getElementById("nurse_name").value,
+            contact_phone: document.getElementById("contact_phone").value,
+          };
+
+          const url = id ? `/api/rooms/${id}` : "/api/rooms";
+          const method = id ? "PUT" : "POST";
+
+          fetch(url, {
+            method: method,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          })
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.success) {
+                closeRoomModal();
+                fetchRooms();
+              } else {
+                alert(data.error || "Failed to save room");
+              }
+            });
+        });
+
+      function deleteRoom(id) {
+        if (
+          confirm("Are you sure you want to remove this room configuration?")
+        ) {
+          fetch(`/api/rooms/${id}`, { method: "DELETE" })
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.success) fetchRooms();
+            });
+        }
+      }
+
+      // Polling for live alerts
+      setInterval(() => {
+        if (
+          document.getElementById("alerts-view").classList.contains("active")
+        ) {
+          fetchAlerts();
+        }
+      }, 3000);
+
+      // Initial Load
+      fetchAlerts();
+    </script>
+  </body>
+</html>
